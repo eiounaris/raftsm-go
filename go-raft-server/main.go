@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"go-raft-server/kvdb"
 	"go-raft-server/kvraft"
@@ -43,11 +44,7 @@ func main() {
 		panic(err)
 	}
 	applyCh := make(chan raft.ApplyMsg)
-	go func() {
-		for msg := range applyCh {
-			log.Printf("receive Raft ApplyMsg：%v\n", msg)
-		}
-	}()
+
 	gob.Register([]kvraft.Command{})
 	service := raft.Make(peers, me, logdb, applyCh)
 
@@ -75,21 +72,32 @@ func main() {
 			}
 
 			if input == "test command" { // 输入 test command 时测试 tps
+				tBegin := time.Now()
 				blockOfCommands := make([]kvraft.Command, 100)
 				for index := range blockOfCommands {
 					blockOfCommands[index].CommandArgs = &kvraft.CommandArgs{Key: []byte("testKey"), Value: []byte("testValue"), Op: kvraft.OpGet}
 				}
-				for {
+				for range 10000 {
 					// 调用 raft 服务
-					fmt.Println(service.Start(blockOfCommands))
+					service.Start(blockOfCommands)
+					msg := <-applyCh
+					log.Printf("receive Raft ApplyMsg：%v\n", msg)
 				}
+				tEnd := time.Now()
+				fmt.Printf("TPS: %v\n", 100*100/tEnd.Sub(tBegin).Seconds())
 			}
+
 			if input == "test string" { // 输入 test string 时测试 tps
+				tBegin := time.Now()
 				blockOfInputs := make([]int, 100)
-				for {
+				for range 10000 {
 					// 调用 raft 服务
 					service.Start(blockOfInputs)
+					msg := <-applyCh
+					log.Printf("receive Raft ApplyMsg：%v\n", msg)
 				}
+				tEnd := time.Now()
+				fmt.Printf("TPS: %v\n", 100*100/tEnd.Sub(tBegin).Seconds())
 			}
 			// 调用 raft 服务
 			fmt.Println(service.Start(input))
