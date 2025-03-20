@@ -2,6 +2,7 @@ package kvraft
 
 import (
 	"encoding/gob"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -23,9 +24,8 @@ type KVServer struct {
 	rf           *raft.Raft
 	applyCh      chan raft.ApplyMsg
 	stateMachine *KVVDB
-	notifyChs    map[int][]chan *CommandReply // 修改为存储通道切片
+	notifyChs    map[int][]chan *CommandReply
 
-	// 缓冲相关字段
 	buffer       []bufferedCommand
 	bufferLock   sync.Mutex
 	batchSize    int
@@ -41,7 +41,6 @@ func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error
 	kv.bufferLock.Lock()
 	kv.buffer = append(kv.buffer, bufferedCommand{args: args, ch: ch})
 
-	// 检查是否达到批量大小
 	if len(kv.buffer) >= kv.batchSize {
 		batch := make([]bufferedCommand, len(kv.buffer))
 		copy(batch, kv.buffer)
@@ -66,7 +65,6 @@ func (kv *KVServer) submitBatch(batch []bufferedCommand) {
 		return
 	}
 
-	// 构造命令切片
 	commands := make([]Command, len(batch))
 	for i, bc := range batch {
 		commands[i] = Command{&CommandArgs{Op: bc.args.Op, Key: bc.args.Key, Value: bc.args.Value, Version: bc.args.Version}}
@@ -128,18 +126,18 @@ func (kv *KVServer) applier() {
 					}
 				}
 			default:
-				log.Fatalf("未知的命令类型: %T", cmd)
+				panic(fmt.Sprintf("unknown cmp type: %T\n", cmd))
 			}
 			kv.mu.Unlock()
 		} else {
-			log.Fatalf("Invalid ApplyMsg %v", message)
+			panic(fmt.Sprintf("Invalid ApplyMsg %v\n", message))
 		}
 	}
 }
 
 func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB) *KVServer {
 	gob.Register(Command{})
-	gob.Register([]Command{}) // 注册切片类型
+	gob.Register([]Command{})
 	applyCh := make(chan raft.ApplyMsg)
 
 	kv := &KVServer{
@@ -159,7 +157,7 @@ func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB) 
 
 	err := util.RegisterRPCService(kv)
 	if err != nil {
-		log.Fatalf("注册节点 KVRaft rpc 服务出错： %v\n", err)
+		panic(fmt.Sprintf("error when register KVServer rpc service: %v\n", err))
 	}
 	return kv
 }

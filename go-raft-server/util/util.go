@@ -30,8 +30,8 @@ type Env struct {
 	PeersInfoFilePath string
 }
 
-func LoadEnv() (*Env, error) {
-	err := godotenv.Load(".env")
+func LoadEnv(envFiles []string) (*Env, error) {
+	err := godotenv.Load(envFiles...)
 	if err != nil {
 		return nil, err
 	}

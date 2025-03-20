@@ -5,7 +5,6 @@ import (
 	"encoding/gob"
 	"fmt"
 	"go-raft-server/util"
-	"log"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -14,11 +13,12 @@ import (
 
 // === Timeout
 
-// const ElectionTimeout = 150
-// const HeartbeatTimeout = 10
+// var ElectionTimeout = 150
+// var HeartbeatTimeout = 10
 
-const ElectionTimeout = 2000
-const HeartbeatTimeout = 1000
+var ElectionTimeout = 2000
+
+var HeartbeatTimeout = 1000
 
 type LockedRand struct {
 	mu   sync.Mutex
@@ -81,15 +81,13 @@ func (rf *Raft) ChangeState(state NodeState) {
 	case Leader:
 		rf.electionTimer.Stop() // stop election
 		rf.heartbeatTimer.Reset(StableHeartbeatTimeout())
-		lastLogIndex := rf.lastLogIndex
 		for peer := range rf.peers {
 			if peer != rf.me {
-				rf.matchIndex[peer], rf.nextIndex[peer] = 0, lastLogIndex+1
+				rf.matchIndex[peer], rf.nextIndex[peer] = 0, rf.lastLogIndex+1
 			} else {
-				rf.matchIndex[peer], rf.nextIndex[peer] = lastLogIndex, lastLogIndex+1
+				rf.matchIndex[peer], rf.nextIndex[peer] = rf.lastLogIndex, rf.lastLogIndex+1
 			}
 		}
-
 	}
 }
 
@@ -112,7 +110,7 @@ func (rf *Raft) getLogByIndex(index int) (*LogEntry, error) {
 	r := bytes.NewBuffer(indexedLogBytes)
 	d := gob.NewDecoder(r)
 	if err := d.Decode(&indexedLog); err != nil {
-		log.Panicln(err)
+		panic(err)
 	}
 	return &indexedLog, nil
 }
@@ -122,7 +120,7 @@ func (rf *Raft) storeLogEntry(logentry *LogEntry) error {
 	e := gob.NewEncoder(w)
 	err := e.Encode(logentry)
 	if err != nil {
-		log.Panicln(err)
+		panic(err)
 	}
 	err = rf.logdb.Set([]byte(strconv.Itoa(logentry.Index)), w.Bytes())
 	if err != nil {
@@ -156,7 +154,7 @@ func (rf *Raft) getLastLog() (*LogEntry, error) {
 	r := bytes.NewBuffer(lastLogBytes)
 	d := gob.NewDecoder(r)
 	if err = d.Decode(&lastLog); err != nil {
-		log.Panicln(err)
+		panic(err)
 	}
 	return &lastLog, nil
 }

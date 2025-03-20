@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"log"
 	"sort"
 	"strconv"
@@ -93,7 +94,7 @@ func Make(peers []peer.Peer, me int, logdb *kvdb.KVDB, applyCh chan ApplyMsg) *R
 	// register rf *raft.Raft service
 	err := util.RegisterRPCService(rf)
 	if err != nil {
-		log.Fatalf("error when register RaftRpc service: %v\n", err)
+		panic(fmt.Sprintf("error when register Raft rpc service: %v\n", err))
 	}
 
 	return rf

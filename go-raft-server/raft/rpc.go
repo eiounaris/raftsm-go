@@ -88,7 +88,7 @@ type AppendEntriesReply struct {
 }
 
 func (rf *Raft) genAppendEntriesArgs(prevLogIndex int) (*AppendEntriesArgs, error) {
-	entries, err := rf.getLogsInRange(prevLogIndex+1, Min(rf.lastLogIndex, prevLogIndex+1+10)) // 1000: max logEntry nums once transmited
+	entries, err := rf.getLogsInRange(prevLogIndex+1, Min(rf.lastLogIndex, prevLogIndex+1+10)) // 10: max logEntry nums once transmited
 	if err != nil {
 		return nil, err
 	}
