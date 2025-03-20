@@ -210,7 +210,6 @@ func (rf *Raft) replicateOnceRound(peer int) {
 		rf.mu.Unlock()
 	} else {
 		// reset offline peer's matchindex in oder to send a lot of useless logs
-		rf.matchIndex[peer] = rf.lastLogIndex
 		rf.nextIndex[peer] = rf.lastLogIndex + 1
 	}
 }

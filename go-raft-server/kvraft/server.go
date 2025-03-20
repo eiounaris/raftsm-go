@@ -12,25 +12,45 @@ import (
 	"go-raft-server/util"
 )
 
-type KVServer struct {
-	mu      sync.RWMutex
-	me      int
-	rf      *raft.Raft
-	applyCh chan raft.ApplyMsg
+type bufferedCommand struct {
+	args *CommandArgs
+	ch   chan *CommandReply
+}
 
+type KVServer struct {
+	mu           sync.RWMutex
+	me           int
+	rf           *raft.Raft
+	applyCh      chan raft.ApplyMsg
 	stateMachine *KVVDB
-	notifyChs    map[int]chan *CommandReply
+	notifyChs    map[int][]chan *CommandReply // 修改为存储通道切片
+
+	// 缓冲相关字段
+	buffer       []bufferedCommand
+	bufferLock   sync.Mutex
+	batchSize    int
+	batchTimeout time.Duration
 }
 
 func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error {
-	index, _, isLeader := kv.rf.Start(Command{args})
-	if !isLeader {
+	if _, ok := kv.rf.GetState(); !ok {
 		reply.Err = ErrWrongLeader
 		return nil
 	}
-	kv.mu.Lock()
-	ch := kv.getNotifyCh(index)
-	kv.mu.Unlock()
+	ch := make(chan *CommandReply, 1)
+	kv.bufferLock.Lock()
+	kv.buffer = append(kv.buffer, bufferedCommand{args: args, ch: ch})
+
+	// 检查是否达到批量大小
+	if len(kv.buffer) >= kv.batchSize {
+		batch := make([]bufferedCommand, len(kv.buffer))
+		copy(batch, kv.buffer)
+		kv.buffer = kv.buffer[:0]
+		kv.bufferLock.Unlock()
+		go kv.submitBatch(batch)
+	} else {
+		kv.bufferLock.Unlock()
+	}
 
 	select {
 	case result := <-ch:
@@ -38,23 +58,35 @@ func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error
 	case <-time.After(ExecuteTimeout):
 		reply.Err = ErrTimeout
 	}
-	go func() {
-		kv.mu.Lock()
-		kv.deleteNotifyCh(index)
-		kv.mu.Unlock()
-	}()
 	return nil
 }
 
-func (kv *KVServer) getNotifyCh(index int) chan *CommandReply {
-	if _, ok := kv.notifyChs[index]; !ok {
-		kv.notifyChs[index] = make(chan *CommandReply, 1)
+func (kv *KVServer) submitBatch(batch []bufferedCommand) {
+	if len(batch) == 0 {
+		return
 	}
-	return kv.notifyChs[index]
-}
 
-func (kv *KVServer) deleteNotifyCh(index int) {
-	delete(kv.notifyChs, index)
+	// 构造命令切片
+	commands := make([]Command, len(batch))
+	for i, bc := range batch {
+		commands[i] = Command{&CommandArgs{Op: bc.args.Op, Key: bc.args.Key, Value: bc.args.Value, Version: bc.args.Version}}
+	}
+
+	index, _, isLeader := kv.rf.Start(commands)
+	if !isLeader {
+		for _, bc := range batch {
+			bc.ch <- &CommandReply{Err: ErrWrongLeader}
+		}
+		return
+	}
+
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	chs := make([]chan *CommandReply, len(batch))
+	for i, bc := range batch {
+		chs[i] = bc.ch
+	}
+	kv.notifyChs[index] = chs
 }
 
 func (kv *KVServer) applyLogToStateMachine(command Command) *CommandReply {
@@ -75,13 +107,28 @@ func (kv *KVServer) applier() {
 		log.Printf("{Node %v} tries to apply message %v\n", kv.rf.GetId(), message)
 		if message.CommandValid {
 			kv.mu.Lock()
-			reply := new(CommandReply)
-			command := message.Command.(Command) // type assertion
-			reply = kv.applyLogToStateMachine(command)
-			// just notify related channel for currentTerm's log when node is leader
-			if currentTerm, isLeader := kv.rf.GetState(); isLeader && message.CommandTerm == currentTerm {
-				ch := kv.getNotifyCh(message.CommandIndex)
-				ch <- reply
+			switch cmd := message.Command.(type) {
+			case []Command:
+				var replies []*CommandReply
+				for _, c := range cmd {
+					reply := kv.applyLogToStateMachine(c)
+					replies = append(replies, reply)
+				}
+
+				if currentTerm, isLeader := kv.rf.GetState(); isLeader && message.CommandTerm == currentTerm {
+					if chs, ok := kv.notifyChs[message.CommandIndex]; ok {
+						for i, ch := range chs {
+							if i < len(replies) {
+								ch <- replies[i]
+							} else {
+								ch <- &CommandReply{Err: ErrTimeout}
+							}
+						}
+						delete(kv.notifyChs, message.CommandIndex)
+					}
+				}
+			default:
+				log.Fatalf("未知的命令类型: %T", cmd)
 			}
 			kv.mu.Unlock()
 		} else {
@@ -91,9 +138,8 @@ func (kv *KVServer) applier() {
 }
 
 func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB) *KVServer {
-	// call gob.Register on structures you want
-	// Go's RPC library to marshall/unmarshall.
 	gob.Register(Command{})
+	gob.Register([]Command{}) // 注册切片类型
 	applyCh := make(chan raft.ApplyMsg)
 
 	kv := &KVServer{
@@ -102,14 +148,34 @@ func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB) 
 		rf:           raft.Make(servers, me, logdb, applyCh),
 		applyCh:      applyCh,
 		stateMachine: kvvdb,
-		notifyChs:    make(map[int]chan *CommandReply),
+		notifyChs:    make(map[int][]chan *CommandReply),
+		buffer:       make([]bufferedCommand, 0),
+		batchSize:    100,
+		batchTimeout: 200 * time.Millisecond,
 	}
 
 	go kv.applier()
+	go kv.periodicBatchSubmit()
 
 	err := util.RegisterRPCService(kv)
 	if err != nil {
 		log.Fatalf("注册节点 KVRaft rpc 服务出错： %v\n", err)
 	}
 	return kv
+}
+
+func (kv *KVServer) periodicBatchSubmit() {
+	for {
+		time.Sleep(kv.batchTimeout)
+		kv.bufferLock.Lock()
+		if len(kv.buffer) > 0 {
+			batch := make([]bufferedCommand, len(kv.buffer))
+			copy(batch, kv.buffer)
+			kv.buffer = kv.buffer[:0]
+			kv.bufferLock.Unlock()
+			kv.submitBatch(batch)
+		} else {
+			kv.bufferLock.Unlock()
+		}
+	}
 }

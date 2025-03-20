@@ -97,10 +97,15 @@ func main() {
 				continue
 			}
 			key := parts[2]
-			for i := range 10000 {
-				fmt.Printf("等待第 %v 次 get 命令执行\n", i)
-				reply := ck.Get([]byte(key))
-				fmt.Printf("查询结果: %v\n", reply)
+			goroutinenums := 200
+			for i := range goroutinenums {
+				go func() {
+					for j := range 100 {
+						fmt.Printf("用户 {%v} 等待第 %v 次 get 命令执行\n", i, j)
+						reply := ck.Get([]byte(key))
+						fmt.Printf("用户 {%v} 查询结果: %v\n", i, reply)
+					}
+				}()
 			}
 
 		default:
