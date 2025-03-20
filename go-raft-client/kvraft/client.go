@@ -1,7 +1,6 @@
 package kvraft
 
 import (
-	"fmt"
 	"go-raft-client/peer"
 )
 
@@ -34,7 +33,7 @@ func (ck *Clerk) ExecuteCommand(args *CommandArgs) *CommandReply {
 	for {
 		ok := ck.servers[ck.leaderId].Call("KVServer", "ExecuteCommand", args, reply)
 		if !ok || reply.Err == ErrWrongLeader || reply.Err == ErrTimeout {
-			fmt.Printf("recive ok?: %v, reply.Err: %v from %v\n", ok, reply.Err, ck.leaderId)
+			// fmt.Printf("recive ok?: %v, reply.Err: %v from %v\n", ok, reply.Err, ck.leaderId)
 			ck.leaderId = (ck.leaderId + 1) % len(ck.servers)
 			continue
 		}

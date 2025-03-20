@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"go-raft-client/kvraft"
 	"go-raft-client/peer"
@@ -97,9 +99,13 @@ func main() {
 				continue
 			}
 			key := parts[2]
-			goroutinenums := 200
+			goroutinenums := 100
+			wg := new(sync.WaitGroup)
+			tBegin := time.Now()
 			for i := range goroutinenums {
+				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					for j := range 100 {
 						fmt.Printf("用户 {%v} 等待第 %v 次 get 命令执行\n", i, j)
 						reply := ck.Get([]byte(key))
@@ -107,6 +113,9 @@ func main() {
 					}
 				}()
 			}
+			wg.Wait()
+			tEnd := time.Now()
+			fmt.Printf("TPS: %v\n", 100*100/tEnd.Sub(tBegin).Seconds())
 
 		default:
 			fmt.Println("未知命令，支持命令格式如下:")
