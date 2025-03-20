@@ -13,12 +13,12 @@ import (
 
 // === Timeout
 
-// var ElectionTimeout = 150
-// var HeartbeatTimeout = 10
+var ElectionTimeout = 150
+var HeartbeatTimeout = 10
 
-var ElectionTimeout = 2000
+// var ElectionTimeout = 2000
 
-var HeartbeatTimeout = 1000
+// var HeartbeatTimeout = 1000
 
 type LockedRand struct {
 	mu   sync.Mutex
