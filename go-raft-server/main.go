@@ -97,7 +97,7 @@ func main() {
 					log.Printf("receive Raft ApplyMsg：%v\n", msg)
 				}
 				tEnd := time.Now()
-				fmt.Printf("TPS: %v\n", 100*100/tEnd.Sub(tBegin).Seconds())
+				fmt.Printf("TPS: %v\n", 100*100*100/tEnd.Sub(tBegin).Seconds())
 			}
 			// 调用 raft 服务
 			fmt.Println(service.Start(input))
