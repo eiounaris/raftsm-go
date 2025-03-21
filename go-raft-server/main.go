@@ -113,6 +113,7 @@ func main() {
 				wg.Wait()
 				tEnd := time.Now()
 				fmt.Printf("TPS: %v\n", (float64(clients*len(blockOfCommands)*requestNums))/(tEnd.Sub(tBegin).Seconds()))
+				continue
 			}
 
 			if input == "test string" { // 输入 test string 测试共识字符串时的 TPS
@@ -139,6 +140,7 @@ func main() {
 				wg.Wait()
 				tEnd := time.Now()
 				fmt.Printf("TPS: %v\n", (float64(clients*len(blockOfString)*requestNums))/(tEnd.Sub(tBegin).Seconds()))
+				continue
 			}
 
 			// 调用 raft 服务
