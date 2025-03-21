@@ -75,7 +75,7 @@ func main() {
 			if input == "test command" { // 输入 test command 时测试 tps
 				blockOfCommands := make([]kvraft.Command, 100)
 				for index := range blockOfCommands {
-					blockOfCommands[index].CommandArgs = &kvraft.CommandArgs{Key: []byte("testKey"), Value: []byte("testValue"), Op: kvraft.OpGet}
+					blockOfCommands[index].CommandArgs = &kvraft.CommandArgs{Key: []byte("testKey"), Value: []byte("testValue"), Version: 0, Op: kvraft.OpGet}
 				}
 				clients := 10
 				requestNums := 100
