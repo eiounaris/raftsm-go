@@ -16,13 +16,12 @@ type Peer struct {
 }
 
 func LoadPeers(filepath string) ([]Peer, error) {
-	peersJson, err := os.ReadFile(filepath)
+	var peers []Peer
+	peersBytes, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
-	var peers []Peer
-	err = json.Unmarshal([]byte(peersJson), &peers)
-	if err != nil {
+	if err = json.Unmarshal(peersBytes, &peers); err != nil {
 		return nil, err
 	}
 	return peers, nil

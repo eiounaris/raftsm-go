@@ -18,6 +18,7 @@ import (
 )
 
 func main() {
+
 	// 加载 .env 文件环境变量
 	envFiles := []string{".env"}
 	env, err := util.LoadEnv(envFiles)
@@ -26,33 +27,49 @@ func main() {
 	}
 	envMe := env.Me
 	util.Debug = env.Debug
-	peersInfoFilePath := env.PeersInfoFilePath
+	peersPath := env.PeersPath
+	persistentConfigPath := env.PersistentConfigPath
 
 	// 加载节点配置信息
-	peers, err := peer.LoadPeers(peersInfoFilePath)
+	peers, err := peer.LoadPeers(peersPath)
 	if err != nil {
-		log.Fatalln(err)
+		panic(err)
 	}
+
+	// 加载系统配置信息
+	persistentConfig, err := util.LoadPersistentConfig(persistentConfigPath)
+	if err != nil {
+		panic(err)
+	}
+	raft.ElectionTimeout = persistentConfig.ElectionTimeout
+	raft.HeartbeatTimeout = persistentConfig.HeartbeatTimeout
 
 	// 使用 -me flag 重置环境变量 me
 	flagMe := flag.Int("me", envMe, "peer id")
 	flag.Parse()
 	me := *flagMe
 
-	// 启动节点 Raft 服务
+	// 启动节点 Raft logdb 数据库
 	logdb, err := kvdb.MakeKVDB(fmt.Sprintf("data/logdb%v", me))
 	if err != nil {
 		panic(err)
 	}
+
+	// 创建节点 Raft ApplyMsg 通道
 	applyCh := make(chan raft.ApplyMsg)
 
+	// 注解 Command transferred
 	gob.Register([]kvraft.Command{})
+
+	// 启动节点 Raft
 	service := raft.Make(peers, me, logdb, applyCh)
 
 	// 启动 rpc 服务
 	if _, err = util.StartRPCServer(fmt.Sprintf(":%v", peers[me].Port)); err != nil {
-		log.Fatalf("error when start rpc service ：%v\n", err)
+		panic(fmt.Sprintf("error when start rpc service: %v\n", err))
 	}
+
+	// 打印节点启动日志
 	log.Printf("peer Raft service started, lisening addr: %v:%v\n", peers[me].Ip, peers[me].Port)
 
 	// 启动命令行程序
@@ -72,7 +89,7 @@ func main() {
 				return
 			}
 
-			if input == "test command" { // 输入 test command 时测试 tps
+			if input == "test command" { // 输入 test command 测试共识命令切片时的 TPS
 				blockOfCommands := make([]kvraft.Command, 100)
 				for index := range blockOfCommands {
 					blockOfCommands[index].CommandArgs = &kvraft.CommandArgs{Key: []byte("testKey"), Value: []byte("testValue"), Version: 0, Op: kvraft.OpGet}
@@ -81,15 +98,15 @@ func main() {
 				requestNums := 100
 				wg := new(sync.WaitGroup)
 				tBegin := time.Now()
-				for range clients {
+				for i := range clients {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						for range requestNums {
+						for j := range requestNums {
 							// 调用 raft 服务
 							service.Start(blockOfCommands)
 							msg := <-applyCh
-							log.Printf("receive Raft ApplyMsg：%v\n", msg)
+							log.Printf("client {%v} received num {%v} Raft ApplyMsg(%v)\n", i, j, msg)
 						}
 					}()
 				}
@@ -98,30 +115,35 @@ func main() {
 				fmt.Printf("TPS: %v\n", (float64(clients*len(blockOfCommands)*requestNums))/(tEnd.Sub(tBegin).Seconds()))
 			}
 
-			if input == "test string" { // 输入 test string 时测试 tps
-				blockOfInputs := make([]int, 100)
+			if input == "test string" { // 输入 test string 测试共识字符串时的 TPS
+				blockOfString := make([]string, 100)
+				for index := range blockOfString {
+					blockOfString[index] = "testString"
+				}
 				clients := 10
 				requestNums := 100
 				wg := new(sync.WaitGroup)
 				tBegin := time.Now()
-				for range clients {
+				for i := range clients {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						for range requestNums {
+						for j := range requestNums {
 							// 调用 raft 服务
-							service.Start(blockOfInputs)
+							service.Start(blockOfString)
 							msg := <-applyCh
-							log.Printf("receive Raft ApplyMsg：%v\n", msg)
+							log.Printf("client {%v} received num {%v} Raft ApplyMsg(%v)\n", i, j, msg)
 						}
 					}()
 				}
 				wg.Wait()
 				tEnd := time.Now()
-				fmt.Printf("TPS: %v\n", (float64(clients*len(blockOfInputs)*requestNums))/(tEnd.Sub(tBegin).Seconds()))
+				fmt.Printf("TPS: %v\n", (float64(clients*len(blockOfString)*requestNums))/(tEnd.Sub(tBegin).Seconds()))
 			}
 			// 调用 raft 服务
-			fmt.Println(service.Start(input))
+			service.Start(input)
+			msg := <-applyCh
+			log.Printf("client received Raft ApplyMsg(%v)\n", msg)
 		}
 	}()
 

@@ -20,7 +20,6 @@ type bufferedCommand struct {
 
 type KVServer struct {
 	mu           sync.RWMutex
-	me           int
 	rf           *raft.Raft
 	applyCh      chan raft.ApplyMsg
 	stateMachine *KVVDB
@@ -135,21 +134,20 @@ func (kv *KVServer) applier() {
 	}
 }
 
-func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB) *KVServer {
+func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, batchSize, batchTimeout int) *KVServer {
 	gob.Register(Command{})
 	gob.Register([]Command{})
 	applyCh := make(chan raft.ApplyMsg)
 
 	kv := &KVServer{
 		mu:           sync.RWMutex{},
-		me:           me,
 		rf:           raft.Make(servers, me, logdb, applyCh),
 		applyCh:      applyCh,
 		stateMachine: kvvdb,
 		notifyChs:    make(map[int][]chan *CommandReply),
 		buffer:       make([]bufferedCommand, 0),
-		batchSize:    100,
-		batchTimeout: 200 * time.Millisecond,
+		batchSize:    batchSize,
+		batchTimeout: time.Duration(batchTimeout) * time.Millisecond,
 	}
 
 	go kv.applier()

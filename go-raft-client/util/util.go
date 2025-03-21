@@ -1,6 +1,7 @@
 package util
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net"
@@ -25,14 +26,14 @@ func DPrintf(format string, a ...any) {
 // === Env
 
 type Env struct {
-	Me                int
-	Debug             bool
-	PeersInfoFilePath string
+	Me                   int
+	Debug                bool
+	PeersPath            string
+	PersistentConfigPath string
 }
 
-func LoadEnv() (*Env, error) {
-	err := godotenv.Load(".env")
-	if err != nil {
+func LoadEnv(envFiles []string) (*Env, error) {
+	if err := godotenv.Load(envFiles...); err != nil {
 		return nil, err
 	}
 
@@ -54,18 +55,45 @@ func LoadEnv() (*Env, error) {
 		return nil, err
 	}
 
-	peersInfoFilePath, ok := os.LookupEnv("peersInfoFilePath")
+	peersPath, ok := os.LookupEnv("peersPath")
 	if !ok {
 		return nil, errors.New("there is no env of \"peersInfoFilePath\"")
 	}
-	return &Env{Me: me, Debug: debug, PeersInfoFilePath: peersInfoFilePath}, nil
+
+	persistentConfigPath, ok := os.LookupEnv("persistentConfigPath")
+	if !ok {
+		return nil, errors.New("there is no env of \"persistentConfigPath\"")
+	}
+
+	return &Env{Me: me, Debug: debug, PeersPath: peersPath, PersistentConfigPath: persistentConfigPath}, nil
+}
+
+// === PersistentConfig
+
+type PersistentConfig struct {
+	ElectionTimeout  int
+	HeartbeatTimeout int
+	ExecuteTimeout   int
+	BatchSize        int
+	BatchTimeout     int
+}
+
+func LoadPersistentConfig(filepath string) (*PersistentConfig, error) {
+	var persistentConfig *PersistentConfig
+	persistentConfigJsonBytes, err := os.ReadFile(filepath)
+	if err != nil {
+		return persistentConfig, err
+	}
+	if err = json.Unmarshal(persistentConfigJsonBytes, persistentConfig); err != nil {
+		return nil, err
+	}
+	return persistentConfig, nil
 }
 
 // === RegisterRPCService
 
 func RegisterRPCService(service any) error {
-	err := rpc.Register(service)
-	if err != nil {
+	if err := rpc.Register(service); err != nil {
 		return err
 	}
 	return nil
@@ -75,13 +103,10 @@ func RegisterRPCService(service any) error {
 
 func StartRPCServer(address string) (net.Listener, error) {
 	rpc.HandleHTTP()
-
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
-
 	go http.Serve(listener, nil)
-
 	return listener, nil
 }

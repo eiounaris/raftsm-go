@@ -16,10 +16,6 @@ import (
 var ElectionTimeout = 150
 var HeartbeatTimeout = 10
 
-// var ElectionTimeout = 2000
-
-// var HeartbeatTimeout = 1000
-
 type LockedRand struct {
 	mu   sync.Mutex
 	rand *rand.Rand

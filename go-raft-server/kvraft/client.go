@@ -1,7 +1,7 @@
 package kvraft
 
 import (
-	"go-raft-server/peer"
+	"go-raft-client/peer"
 )
 
 type Clerk struct {
@@ -24,7 +24,7 @@ func (ck *Clerk) Set(key []byte, value []byte, version int) *CommandReply {
 	return ck.ExecuteCommand(&CommandArgs{Key: key, Value: value, Version: version, Op: OpSet})
 }
 
-func (ck *Clerk) Delet(key []byte, version int) *CommandReply {
+func (ck *Clerk) Delete(key []byte, version int) *CommandReply {
 	return ck.ExecuteCommand(&CommandArgs{Key: key, Version: version, Op: OpDelete})
 }
 
@@ -33,6 +33,7 @@ func (ck *Clerk) ExecuteCommand(args *CommandArgs) *CommandReply {
 	for {
 		ok := ck.servers[ck.leaderId].Call("KVServer", "ExecuteCommand", args, reply)
 		if !ok || reply.Err == ErrWrongLeader || reply.Err == ErrTimeout {
+			// fmt.Printf("recive ok?: %v, reply.Err: %v from %v\n", ok, reply.Err, ck.leaderId)
 			ck.leaderId = (ck.leaderId + 1) % len(ck.servers)
 			continue
 		}

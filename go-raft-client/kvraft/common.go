@@ -69,7 +69,7 @@ type CommandArgs struct {
 }
 
 func (args CommandArgs) String() string {
-	return fmt.Sprintf("{Key:%s, Value:%s, version:%v, Op:%v}", args.Key, args.Value, args.Version, args.Op)
+	return fmt.Sprintf("{Key:%v, Value:%v, version:%v, Op:%v}", args.Key, args.Value, args.Version, args.Op)
 }
 
 // === CommandReply
@@ -81,7 +81,7 @@ type CommandReply struct {
 }
 
 func (reply CommandReply) String() string {
-	return fmt.Sprintf("{Value:%s, Version:%v, Err:%v}", reply.Value, reply.Version, reply.Err)
+	return fmt.Sprintf("{Value:%v, Version:%v, Err:%v}", reply.Value, reply.Version, reply.Err)
 }
 
 // === Command
