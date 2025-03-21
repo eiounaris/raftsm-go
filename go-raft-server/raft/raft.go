@@ -185,8 +185,9 @@ func (rf *Raft) replicateOnceRound(peer int) {
 	}
 	rf.mu.RUnlock()
 	reply := new(AppendEntriesReply)
+	util.DPrintf("{Node %v} sends AppendEntriesArgs %v to {Node %v}", rf.me, args, peer)
 	if rf.sendAppendEntries(peer, args, reply) {
-		util.DPrintf("{Node %v} sends AppendEntriesArgs %v to {Node %v} and receives AppendEntriesReply %v", rf.me, args, peer, reply)
+		util.DPrintf("{Node %v} receives AppendEntriesReply %v from {Node %v}", rf.me, reply, peer)
 		rf.mu.Lock()
 		if args.Term == rf.currentTerm && rf.state == Leader {
 			if !reply.Success {
@@ -314,6 +315,7 @@ func (rf *Raft) StartElection() {
 		}
 		go func(peer int) {
 			reply := new(RequestVoteReply)
+			util.DPrintf("{Node %v} sends RequestVoteArgs %v to {Node %v}", rf.me, args, peer)
 			if rf.sendRequestVote(peer, args, reply) {
 				rf.mu.Lock()
 				defer rf.mu.Unlock()

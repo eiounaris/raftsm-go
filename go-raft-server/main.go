@@ -58,7 +58,7 @@ func main() {
 	// 创建节点 Raft ApplyMsg 通道
 	applyCh := make(chan raft.ApplyMsg)
 
-	// 注解 Command transferred
+	// 注册 Command transferred
 	gob.Register([]kvraft.Command{})
 
 	// 启动节点 Raft
@@ -140,6 +140,7 @@ func main() {
 				tEnd := time.Now()
 				fmt.Printf("TPS: %v\n", (float64(clients*len(blockOfString)*requestNums))/(tEnd.Sub(tBegin).Seconds()))
 			}
+
 			// 调用 raft 服务
 			service.Start(input)
 			msg := <-applyCh

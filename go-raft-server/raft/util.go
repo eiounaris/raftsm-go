@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"log"
+	"go-raft-server/util"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -67,7 +67,7 @@ func (rf *Raft) ChangeState(state NodeState) {
 	if rf.state == state {
 		return
 	}
-	log.Printf("{Node %v} changes state from %v to %v", rf.me, rf.state, state)
+	util.DPrintf("{Node %v} changes state from %v to %v", rf.me, rf.state, state)
 	rf.state = state
 	switch state {
 	case Follower:
