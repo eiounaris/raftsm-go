@@ -65,9 +65,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) erro
 	return nil
 }
 
-func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	ok := rf.peers[server].Call("Raft", "RequestVote", args, reply)
-	return ok
+func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) error {
+	return rf.peers[server].Call("Raft", "RequestVote", args, reply)
 }
 
 // --- AppendEntries
@@ -132,7 +131,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		reply.Term, reply.Success = rf.currentTerm, false
 		lastLog, err := rf.getLastLog()
 		if err != nil {
-			return err
+			panic(err)
 		}
 		// find the first index of the conflicting term
 		if lastLog.Index < args.PrevLogIndex {
@@ -143,7 +142,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			index := args.PrevLogIndex
 			indexLog, err := rf.getLogByIndex(index)
 			if err != nil {
-				return err
+				panic(err)
 			}
 			for index >= rf.commitIndex+1 && indexLog.Term == lastLog.Term {
 				index--
@@ -155,7 +154,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// append any new entries not already in the log
 	for i := range args.Entries {
-		rf.storeLogEntry(&args.Entries[i])
+		if err := rf.storeLogEntry(&args.Entries[i]); err != nil {
+			panic(err)
+		}
 	}
 	rf.lastLogIndex = args.PrevLogIndex + len(args.Entries)
 	rf.persist()
@@ -173,9 +174,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	return nil
 }
 
-func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
-	ok := rf.peers[server].Call("Raft", "AppendEntries", args, reply)
-	return ok
+func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) error {
+	return rf.peers[server].Call("Raft", "AppendEntries", args, reply)
 }
 
 // --- Print Args And Reply gracefully

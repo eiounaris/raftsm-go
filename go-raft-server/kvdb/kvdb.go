@@ -38,16 +38,14 @@ func (kvdb *KVDB) Get(key []byte) ([]byte, error) {
 
 func (kvdb *KVDB) Set(key []byte, value []byte) error {
 	err := kvdb.db.Update(func(txn *badger.Txn) error {
-		err := txn.Set(key, value)
-		return err
+		return txn.Set(key, value)
 	})
 	return err
 }
 
 func (kvdb *KVDB) Delete(key []byte) error {
 	err := kvdb.db.Update(func(txn *badger.Txn) error {
-		err := txn.Delete(key)
-		return err
+		return txn.Delete(key)
 	})
 	return err
 }
