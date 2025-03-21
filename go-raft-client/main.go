@@ -18,13 +18,14 @@ import (
 func main() {
 
 	// 加载.env文件环境变量
-	env, err := util.LoadEnv()
+	envFiles := []string{".env"}
+	env, err := util.LoadEnv(envFiles)
 	if err != nil {
-		log.Fatalln(err)
+		panic(err)
 	}
 
 	// 加载节点配置信息
-	peers, err := peer.LoadPeers(env.PeersInfoFilePath)
+	peers, err := peer.LoadPeers(env.PeersPath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -33,11 +34,13 @@ func main() {
 	ck := kvraft.MakeClerk(peers)
 
 	// 启动命令行程序
-	fmt.Println("1. get <key>                    - 查询键值")
-	fmt.Println("2. set <key> <value> <version>  - 设置键值")
-	fmt.Println("2. delete <key> <version>       - 删除键值")
-	fmt.Println("3. exit                         - 退出程序")
-	fmt.Println("4. test get <key>               - 测试 TPS")
+	fmt.Println("1. get <key>                         - 查询键值")
+	fmt.Println("2. set <key> <value> <version>       - 设置键值")
+	fmt.Println("2. delete <key> <version>            - 删除键值")
+	fmt.Println("3. exit                              - 退出程序")
+	fmt.Println("4. test get <key>                    - 测试 TPS")
+	fmt.Println("4. test set <key> <value> <version>  - 测试 TPS")
+
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		input := strings.TrimSpace(scanner.Text())
@@ -119,11 +122,12 @@ func main() {
 
 		default:
 			fmt.Println("未知命令，支持命令格式如下:")
-			fmt.Println("  1. get <key>                    - 查询键值")
-			fmt.Println("  2. set <key> <value> <version>  - 设置键值")
-			fmt.Println("  2. delete <key> <version>       - 删除键值")
-			fmt.Println("  3. exit                         - 退出程序")
-			fmt.Println("  4. test get <key>               - 测试 TPS")
+			fmt.Println("1. get <key>                         - 查询键值")
+			fmt.Println("2. set <key> <value> <version>       - 设置键值")
+			fmt.Println("2. delete <key> <version>            - 删除键值")
+			fmt.Println("3. exit                              - 退出程序")
+			fmt.Println("4. test get <key>                    - 测试 TPS")
+			fmt.Println("4. test set <key> <value> <version>  - 测试 TPS")
 		}
 	}
 }
