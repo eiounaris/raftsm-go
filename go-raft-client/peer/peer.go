@@ -27,11 +27,10 @@ func LoadPeers(filepath string) ([]Peer, error) {
 	return peers, nil
 }
 
-func (peer *Peer) Call(svc string, svcMeth string, args any, reply any) bool {
+func (peer *Peer) Call(svc string, svcMeth string, args any, reply any) error {
 	client, err := rpc.DialHTTP("tcp", fmt.Sprintf("%v:%v", peer.Ip, peer.Port))
 	if err != nil {
-		return false
+		return err
 	}
-	err = client.Call(svc+"."+svcMeth, args, reply)
-	return err == nil
+	return client.Call(svc+"."+svcMeth, args, reply)
 }
