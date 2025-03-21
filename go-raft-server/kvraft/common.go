@@ -89,3 +89,7 @@ func (reply CommandReply) String() string {
 type Command struct {
 	*CommandArgs
 }
+
+type Commands struct {
+	args []CommandArgs
+}

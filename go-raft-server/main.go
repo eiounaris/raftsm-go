@@ -59,7 +59,7 @@ func main() {
 	applyCh := make(chan raft.ApplyMsg)
 
 	// 注册 Command transferred
-	gob.Register([]kvraft.Command{})
+	gob.Register([]*kvraft.CommandArgs{})
 
 	// 启动节点 Raft
 	service := raft.Make(peers, me, logdb, applyCh)
@@ -90,9 +90,9 @@ func main() {
 			}
 
 			if input == "test command" { // 输入 test command 测试共识命令切片时的 TPS
-				blockOfCommands := make([]kvraft.Command, 100)
+				blockOfCommands := make([]*kvraft.CommandArgs, 100)
 				for index := range blockOfCommands {
-					blockOfCommands[index].CommandArgs = &kvraft.CommandArgs{Key: []byte("testKey"), Value: []byte("testValue"), Version: 0, Op: kvraft.OpGet}
+					blockOfCommands[index] = &kvraft.CommandArgs{Key: []byte("testKey"), Value: []byte("testValue"), Version: 0, Op: kvraft.OpGet}
 				}
 				clients := 10
 				requestNums := 100
