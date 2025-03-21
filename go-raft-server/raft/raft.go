@@ -315,7 +315,7 @@ func (rf *Raft) StartElection() {
 		}
 		go func(peer int) {
 			reply := new(RequestVoteReply)
-			util.DPrintf("{Node %v} sends RequestVoteArgs %v to {Node %v}", rf.me, args, peer)
+			// util.DPrintf("{Node %v} sends RequestVoteArgs %v to {Node %v}", rf.me, args, peer)
 			if rf.sendRequestVote(peer, args, reply) {
 				rf.mu.Lock()
 				defer rf.mu.Unlock()
