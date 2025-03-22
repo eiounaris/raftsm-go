@@ -2,12 +2,7 @@ package kvraft
 
 import (
 	"fmt"
-	"time"
 )
-
-// === ExecuteTimeout
-
-const ExecuteTimeout = 1000 * time.Millisecond
 
 // === Err
 

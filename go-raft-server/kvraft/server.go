@@ -24,10 +24,11 @@ type KVServer struct {
 	stateMachine *KVVDB
 	notifyChs    map[int][]chan *CommandReply
 
-	buffer       bufferedCommands
-	bufferLock   sync.Mutex
-	batchSize    int
-	batchTimeout time.Duration
+	buffer         bufferedCommands
+	bufferLock     sync.Mutex
+	executeTimeout time.Duration
+	batchSize      int
+	batchTimeout   time.Duration
 }
 
 func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error {
@@ -54,7 +55,7 @@ func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error
 	select {
 	case result := <-ch:
 		reply.Value, reply.Version, reply.Err = result.Value, result.Version, result.Err
-	case <-time.After(ExecuteTimeout):
+	case <-time.After(kv.executeTimeout):
 		reply.Err = ErrTimeout
 	}
 	return nil
@@ -120,19 +121,20 @@ func (kv *KVServer) applier() {
 	}
 }
 
-func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, batchSize, batchTimeout int) *KVServer {
+func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, executeTimeout, batchSize, batchTimeout int) *KVServer {
 	gob.Register([]Command{})
 	applyCh := make(chan raft.ApplyMsg)
 
 	kv := &KVServer{
-		mu:           sync.RWMutex{},
-		rf:           raft.Make(servers, me, logdb, applyCh),
-		applyCh:      applyCh,
-		stateMachine: kvvdb,
-		notifyChs:    make(map[int][]chan *CommandReply),
-		buffer:       bufferedCommands{},
-		batchSize:    batchSize,
-		batchTimeout: time.Duration(batchTimeout) * time.Millisecond,
+		mu:             sync.RWMutex{},
+		rf:             raft.Make(servers, me, logdb, applyCh),
+		applyCh:        applyCh,
+		stateMachine:   kvvdb,
+		notifyChs:      make(map[int][]chan *CommandReply),
+		buffer:         bufferedCommands{},
+		executeTimeout: time.Duration(executeTimeout) * time.Millisecond,
+		batchSize:      batchSize,
+		batchTimeout:   time.Duration(batchTimeout) * time.Millisecond,
 	}
 
 	go kv.applier()
