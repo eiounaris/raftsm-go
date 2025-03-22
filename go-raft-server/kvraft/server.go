@@ -3,6 +3,7 @@ package kvraft
 import (
 	"encoding/gob"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -12,19 +13,21 @@ import (
 	"go-raft-server/util"
 )
 
-type bufferedCommands struct {
-	cmds []Command
-	chs  []chan *CommandReply
+type bufferedCommand struct {
+	args *CommandArgs
+	ch   chan *CommandReply
 }
 
 type KVServer struct {
 	mu           sync.RWMutex
+	me           int
 	rf           *raft.Raft
 	applyCh      chan raft.ApplyMsg
 	stateMachine *KVVDB
 	notifyChs    map[int][]chan *CommandReply
 
-	buffer         bufferedCommands
+	buffer         []bufferedCommand
+	bufferLock     sync.Mutex
 	executeTimeout time.Duration
 	batchSize      int
 	batchTimeout   time.Duration
@@ -36,19 +39,17 @@ func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error
 		return nil
 	}
 	ch := make(chan *CommandReply, 1)
-	kv.mu.Lock()
-	kv.buffer.cmds = append(kv.buffer.cmds, Command{args})
-	kv.buffer.chs = append(kv.buffer.chs, ch)
+	kv.bufferLock.Lock()
+	kv.buffer = append(kv.buffer, bufferedCommand{args: args, ch: ch})
 
-	if len(kv.buffer.cmds) >= kv.batchSize {
-		cmds := kv.buffer.cmds
-		chs := kv.buffer.chs
-		kv.buffer.cmds = kv.buffer.cmds[:0]
-		kv.buffer.chs = kv.buffer.chs[:0]
-		kv.mu.Unlock()
-		go kv.submitBatch(cmds, chs)
+	if len(kv.buffer) >= kv.batchSize {
+		batch := make([]bufferedCommand, len(kv.buffer))
+		copy(batch, kv.buffer)
+		kv.buffer = kv.buffer[:0]
+		kv.bufferLock.Unlock()
+		go kv.submitBatch(batch)
 	} else {
-		kv.mu.Unlock()
+		kv.bufferLock.Unlock()
 	}
 
 	select {
@@ -60,38 +61,49 @@ func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error
 	return nil
 }
 
-func (kv *KVServer) submitBatch(cmds []Command, chs []chan *CommandReply) {
-	if len(cmds) == 0 {
+func (kv *KVServer) submitBatch(batch []bufferedCommand) {
+	if len(batch) == 0 {
 		return
 	}
-	index, _, isLeader := kv.rf.Start(cmds)
+
+	commands := make([]Command, len(batch))
+	for i, bc := range batch {
+		commands[i] = Command{&CommandArgs{Op: bc.args.Op, Key: bc.args.Key, Value: bc.args.Value, Version: bc.args.Version}}
+	}
+
+	index, _, isLeader := kv.rf.Start(commands)
 	if !isLeader {
-		for _, ch := range chs {
-			ch <- &CommandReply{Err: ErrWrongLeader}
+		for _, bc := range batch {
+			bc.ch <- &CommandReply{Err: ErrWrongLeader}
 		}
 		return
 	}
+
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
+	chs := make([]chan *CommandReply, len(batch))
+	for i, bc := range batch {
+		chs[i] = bc.ch
+	}
 	kv.notifyChs[index] = chs
 }
 
-func (kv *KVServer) applyLogToStateMachine(cmd Command) *CommandReply {
+func (kv *KVServer) applyLogToStateMachine(command Command) *CommandReply {
 	reply := new(CommandReply)
-	switch cmd.Op {
+	switch command.Op {
 	case OpGet:
-		reply.Value, reply.Version, reply.Err = kv.stateMachine.Get(cmd.Key)
+		reply.Value, reply.Version, reply.Err = kv.stateMachine.Get(command.Key)
 	case OpSet:
-		reply.Err = kv.stateMachine.Set(cmd.Key, cmd.Value, cmd.Version)
+		reply.Err = kv.stateMachine.Set(command.Key, command.Value, command.Version)
 	case OpDelete:
-		reply.Err = kv.stateMachine.Delete(cmd.Key, cmd.Version)
+		reply.Err = kv.stateMachine.Delete(command.Key, command.Version)
 	}
 	return reply
 }
 
 func (kv *KVServer) applier() {
 	for message := range kv.applyCh {
-		util.DPrintf("{Node %v} tries to apply message %v\n", kv.rf.GetId(), message)
+		log.Printf("{Node %v} tries to apply message %v\n", kv.rf.GetId(), message)
 		if message.CommandValid {
 			kv.mu.Lock()
 			switch cmd := message.Command.(type) {
@@ -105,17 +117,21 @@ func (kv *KVServer) applier() {
 				if currentTerm, isLeader := kv.rf.GetState(); isLeader && message.CommandTerm == currentTerm {
 					if chs, ok := kv.notifyChs[message.CommandIndex]; ok {
 						for i, ch := range chs {
-							ch <- replies[i]
+							if i < len(replies) {
+								ch <- replies[i]
+							} else {
+								ch <- &CommandReply{Err: ErrTimeout}
+							}
 						}
+						delete(kv.notifyChs, message.CommandIndex)
 					}
 				}
-				delete(kv.notifyChs, message.CommandIndex)
 			default:
-				panic(fmt.Sprintf("unknown cmd type: %T\n", cmd))
+				log.Fatalf("未知的命令类型: %T", cmd)
 			}
 			kv.mu.Unlock()
 		} else {
-			panic(fmt.Sprintf("Invalid ApplyMsg %v\n", message))
+			log.Fatalf("Invalid ApplyMsg %v", message)
 		}
 	}
 }
@@ -126,41 +142,38 @@ func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, 
 
 	kv := &KVServer{
 		mu:             sync.RWMutex{},
+		me:             me,
 		rf:             raft.Make(servers, me, logdb, applyCh),
 		applyCh:        applyCh,
 		stateMachine:   kvvdb,
 		notifyChs:      make(map[int][]chan *CommandReply),
-		buffer:         bufferedCommands{},
+		buffer:         make([]bufferedCommand, 0),
 		executeTimeout: time.Duration(executeTimeout) * time.Millisecond,
 		batchSize:      batchSize,
 		batchTimeout:   time.Duration(batchTimeout) * time.Millisecond,
 	}
 
 	go kv.applier()
-
 	go kv.periodicBatchSubmit()
 
-	// register kv *kvraft.KVServer service
 	if err := util.RegisterRPCService(kv); err != nil {
-		panic(fmt.Sprintf("error when register KVServer rpc service: %v\n", err))
+		panic(fmt.Sprintf("error when register KVraft rpc service: %v\n", err))
 	}
-
 	return kv
 }
 
 func (kv *KVServer) periodicBatchSubmit() {
 	for {
 		time.Sleep(kv.batchTimeout)
-		kv.mu.Lock()
-		if len(kv.buffer.cmds) > 0 {
-			cmds := kv.buffer.cmds
-			chs := kv.buffer.chs
-			kv.buffer.cmds = kv.buffer.cmds[:0]
-			kv.buffer.chs = kv.buffer.chs[:0]
-			kv.mu.Unlock()
-			go kv.submitBatch(cmds, chs)
+		kv.bufferLock.Lock()
+		if len(kv.buffer) > 0 {
+			batch := make([]bufferedCommand, len(kv.buffer))
+			copy(batch, kv.buffer)
+			kv.buffer = kv.buffer[:0]
+			kv.bufferLock.Unlock()
+			kv.submitBatch(batch)
 		} else {
-			kv.mu.Unlock()
+			kv.bufferLock.Unlock()
 		}
 	}
 }
