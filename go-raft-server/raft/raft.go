@@ -92,8 +92,7 @@ func Make(peers []peer.Peer, me int, logdb *kvdb.KVDB, applyCh chan ApplyMsg) *R
 	go rf.applier()
 
 	// register rf *raft.Raft service
-	err := util.RegisterRPCService(rf)
-	if err != nil {
+	if err := util.RegisterRPCService(rf); err != nil {
 		panic(fmt.Sprintf("error when register Raft rpc service: %v\n", err))
 	}
 
