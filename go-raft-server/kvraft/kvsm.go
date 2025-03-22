@@ -60,7 +60,7 @@ func (kvvdb *KVVDB) Set(key []byte, value []byte, version int) Err {
 			if err := e.Encode(&ValueVersion{Value: value, Version: version}); err != nil {
 				panic(err)
 			}
-			if kvvdb.db.Set(key, w.Bytes()) != nil {
+			if err := kvvdb.db.Set(key, w.Bytes()); err != nil {
 				panic(err)
 			}
 			return Ok
@@ -72,7 +72,7 @@ func (kvvdb *KVVDB) Set(key []byte, value []byte, version int) Err {
 			}
 			w := new(bytes.Buffer)
 			e := gob.NewEncoder(w)
-			if err := e.Encode(ValueVersion{Value: value, Version: 1}); err != nil {
+			if err := e.Encode(&ValueVersion{Value: value, Version: 1}); err != nil {
 				panic(err)
 			}
 			if err := kvvdb.db.Set(key, w.Bytes()); err != nil {
