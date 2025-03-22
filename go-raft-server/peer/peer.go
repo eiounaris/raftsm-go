@@ -11,10 +11,11 @@ import (
 // === Peer
 
 type Peer struct {
-	Id   int    `json:"id"`
-	Ip   string `json:"ip"`
-	Port int    `json:"port"`
-	San  string `json:"san"`
+	Id        int    `json:"id"`
+	Ip        string `json:"ip"`
+	Port      int    `json:"port"`
+	San       string `json:"san"`
+	TlsConfig *tls.Config
 }
 
 func LoadPeers(filepath string) ([]Peer, error) {
@@ -37,9 +38,12 @@ func (peer *Peer) Call(svc string, svcMeth string, args any, reply any) error {
 	return client.Call(svc+"."+svcMeth, args, reply)
 }
 
-func (peer *Peer) TlsRpcCall(tlsConfig *tls.Config, svc string, svcMeth string, args any, reply any) error {
+func (peer *Peer) TlsRpcCall(svc string, svcMeth string, args any, reply any) error {
+	if peer.TlsConfig == nil {
+		panic(fmt.Sprintf("peer%v's tlsCOnfig == nil\n", peer.Id))
+	}
 	// 建立 TLS 连接
-	conn, err := tls.Dial("tcp", fmt.Sprintf("%v:%v", peer.San, peer.Port), tlsConfig)
+	conn, err := tls.Dial("tcp", fmt.Sprintf("%v:%v", peer.San, peer.Port), peer.TlsConfig)
 	if err != nil {
 		return err
 	}

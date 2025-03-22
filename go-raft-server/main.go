@@ -66,10 +66,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	for i := range peers {
+		peers[i].TlsConfig = tlsConfig
+	}
 
 	// 启动节点 Raft
-	service := raft.Make(peers, me, logdb, applyCh, tlsConfig)
-
+	service := raft.Make(peers, me, logdb, applyCh)
 	// 启动 rpc 服务
 	if _, err := util.StartTlsRpcServer(tlsConfig, fmt.Sprintf("%v:%v", peers[me].Ip, peers[me].Port)); err != nil {
 		panic(err)

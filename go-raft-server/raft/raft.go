@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"crypto/tls"
 	"fmt"
 	"log"
 	"sort"
@@ -16,11 +15,10 @@ import (
 
 // A Go object implementing a single Raft peer.
 type Raft struct {
-	mu        sync.RWMutex // Lock to protect shared access to this peer's state, to use RWLock for better performance
-	peers     []peer.Peer  // RPC end points of all peers
-	tlsConfig *tls.Config
-	logdb     *kvdb.KVDB
-	me        int // this peer's index into peers[]
+	mu    sync.RWMutex // Lock to protect shared access to this peer's state, to use RWLock for better performance
+	peers []peer.Peer  // RPC end points of all peers
+	logdb *kvdb.KVDB
+	me    int // this peer's index into peers[]
 
 	// Persistent state on all servers(Updated on stable storage before responding to RPCs)
 	currentTerm   int // latest term server has seen(initialized to 0 on first boot, increases monotonically)
@@ -45,11 +43,10 @@ type Raft struct {
 	replicatorCond []*sync.Cond  // condition variable for replicator goroutine
 }
 
-func Make(peers []peer.Peer, me int, logdb *kvdb.KVDB, applyCh chan ApplyMsg, tlsConfig *tls.Config) *Raft {
+func Make(peers []peer.Peer, me int, logdb *kvdb.KVDB, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{
 		mu:             sync.RWMutex{},
 		peers:          peers,
-		tlsConfig:      tlsConfig,
 		logdb:          logdb,
 		me:             me,
 		currentTerm:    0,
