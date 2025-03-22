@@ -123,11 +123,11 @@ func (kv *KVServer) applier() {
 								ch <- &CommandReply{Err: ErrTimeout}
 							}
 						}
-						delete(kv.notifyChs, message.CommandIndex)
 					}
 				}
+				delete(kv.notifyChs, message.CommandIndex)
 			default:
-				log.Fatalf("未知的命令类型: %T", cmd)
+				log.Fatalf("Unkown cmd type: %T", cmd)
 			}
 			kv.mu.Unlock()
 		} else {
