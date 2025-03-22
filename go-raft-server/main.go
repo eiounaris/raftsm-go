@@ -72,15 +72,15 @@ func main() {
 
 	// 启动节点 Raft
 	service := raft.Make(peers, me, logdb, applyCh)
-	// 启动 rpc 服务
-	if _, err := util.StartTlsRpcServer(tlsConfig, fmt.Sprintf("%v:%v", peers[me].Ip, peers[me].Port)); err != nil {
-		panic(err)
-	}
+	// // 启动 rpc 服务
+	// if _, err := util.StartTlsRpcServer(tlsConfig, fmt.Sprintf("%v:%v", peers[me].Ip, peers[me].Port)); err != nil {
+	// 	panic(err)
+	// }
 
 	// 启动 rpc 服务
-	// if _, err = util.StartRPCServer(fmt.Sprintf(":%v", peers[me].Port)); err != nil {
-	// 	panic(fmt.Sprintf("error when start rpc service: %v\n", err))
-	// }
+	if _, err = util.StartRPCServer(fmt.Sprintf(":%v", peers[me].Port)); err != nil {
+		panic(fmt.Sprintf("error when start rpc service: %v\n", err))
+	}
 
 	// 打印节点启动日志
 	log.Printf("peer Raft service started, lisening addr: %v:(%v)%v\n", peers[me].Ip, peers[me].San, peers[me].Port)
