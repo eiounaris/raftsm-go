@@ -150,7 +150,7 @@ func InitTlsConfig(certFile string, keyFile string, caFile string) (*tls.Config,
 
 // === StartTlsRpcServer
 
-func StartTlsRpcServer(tlsConfig *tls.Config, certFile string, keyFile string, caFile string, address string) (net.Listener, error) {
+func StartTlsRpcServer(tlsConfig *tls.Config, address string) (net.Listener, error) {
 	// 创建 TLS 监听器
 	// 服务端监听地址需与证书 SAN 中的 IP 匹配
 	listener, err := tls.Listen("tcp", address, tlsConfig)
