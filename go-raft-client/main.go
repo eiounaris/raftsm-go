@@ -66,7 +66,7 @@ func main() {
 			if reply.Err == kvraft.ErrNoKey {
 				fmt.Printf("查询结果: %v\n", reply.Err)
 			} else {
-				fmt.Printf("查询结果: %v, %v\n", reply.Value, reply.Version)
+				fmt.Printf("查询结果: %s, %v\n", reply.Value, reply.Version)
 			}
 
 		case "set":
@@ -121,7 +121,7 @@ func main() {
 								if reply.Err == kvraft.ErrNoKey {
 									fmt.Printf("用户 {%v} 第 {%v} 次 get 命令查询结果: %v\n", i, j, reply.Err)
 								} else {
-									fmt.Printf("用户 {%v} 第 {%v} 次 get 命令查询结果: %v, %v\n", i, j, reply.Value, reply.Version)
+									fmt.Printf("用户 {%v} 第 {%v} 次 get 命令查询结果: %s, %v\n", i, j, reply.Value, reply.Version)
 								}
 							}
 						}()

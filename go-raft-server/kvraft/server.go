@@ -25,7 +25,6 @@ type KVServer struct {
 	notifyChs    map[int][]chan *CommandReply
 
 	buffer         bufferedCommands
-	bufferLock     sync.Mutex
 	executeTimeout time.Duration
 	batchSize      int
 	batchTimeout   time.Duration
@@ -37,7 +36,7 @@ func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error
 		return nil
 	}
 	ch := make(chan *CommandReply, 1)
-	kv.bufferLock.Lock()
+	kv.mu.Lock()
 	kv.buffer.cmds = append(kv.buffer.cmds, Command{args})
 	kv.buffer.chs = append(kv.buffer.chs, ch)
 
@@ -46,10 +45,10 @@ func (kv *KVServer) ExecuteCommand(args *CommandArgs, reply *CommandReply) error
 		chs := kv.buffer.chs
 		kv.buffer.cmds = kv.buffer.cmds[:0]
 		kv.buffer.chs = kv.buffer.chs[:0]
-		kv.bufferLock.Unlock()
+		kv.mu.Unlock()
 		go kv.submitBatch(cmds, chs)
 	} else {
-		kv.bufferLock.Unlock()
+		kv.mu.Unlock()
 	}
 
 	select {
@@ -108,9 +107,9 @@ func (kv *KVServer) applier() {
 						for i, ch := range chs {
 							ch <- replies[i]
 						}
-						delete(kv.notifyChs, message.CommandIndex)
 					}
 				}
+				delete(kv.notifyChs, message.CommandIndex)
 			default:
 				panic(fmt.Sprintf("unknown cmd type: %T\n", cmd))
 			}
@@ -138,6 +137,7 @@ func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, 
 	}
 
 	go kv.applier()
+
 	go kv.periodicBatchSubmit()
 
 	// register kv *kvraft.KVServer service
@@ -151,16 +151,16 @@ func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, 
 func (kv *KVServer) periodicBatchSubmit() {
 	for {
 		time.Sleep(kv.batchTimeout)
-		kv.bufferLock.Lock()
+		kv.mu.Lock()
 		if len(kv.buffer.cmds) > 0 {
 			cmds := kv.buffer.cmds
 			chs := kv.buffer.chs
 			kv.buffer.cmds = kv.buffer.cmds[:0]
 			kv.buffer.chs = kv.buffer.chs[:0]
-			kv.bufferLock.Unlock()
+			kv.mu.Unlock()
 			go kv.submitBatch(cmds, chs)
 		} else {
-			kv.bufferLock.Unlock()
+			kv.mu.Unlock()
 		}
 	}
 }
