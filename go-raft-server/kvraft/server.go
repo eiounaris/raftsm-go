@@ -1,7 +1,6 @@
 package kvraft
 
 import (
-	"crypto/tls"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -137,14 +136,14 @@ func (kv *KVServer) applier() {
 	}
 }
 
-func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, tlsConfig *tls.Config, executeTimeout, batchSize, batchTimeout int) *KVServer {
+func StartKVServer(servers []peer.Peer, me int, logdb *kvdb.KVDB, kvvdb *KVVDB, executeTimeout, batchSize, batchTimeout int) *KVServer {
 	gob.Register([]Command{})
 	applyCh := make(chan raft.ApplyMsg)
 
 	kv := &KVServer{
 		mu:             sync.RWMutex{},
 		me:             me,
-		rf:             raft.Make(servers, me, logdb, applyCh, tlsConfig),
+		rf:             raft.Make(servers, me, logdb, applyCh),
 		applyCh:        applyCh,
 		stateMachine:   kvvdb,
 		notifyChs:      make(map[int][]chan *CommandReply),
